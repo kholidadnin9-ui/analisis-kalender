@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Administrasi Guru (Offline)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); background-attachment: fixed; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* FIX SCROLL & STICKY HEADER */
+        .table-container { 
+            max-height: 75vh; 
+            overflow: auto; 
+            position: relative; 
+            border: 1px solid #cbd5e1;
+            border-radius: 0.75rem;
+            background: white;
+        }
+
+        /* Sticky Table Styles */
+        .sticky-table thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 100; background-color: #0f172a !important; color: white; }
+        .sticky-table thead tr:nth-child(2) th { position: sticky; top: 38px; z-index: 90; background-color: #1e293b !important; color: white; }
+        .sticky-col { position: sticky; z-index: 40; background: white !important; border-right: 2px solid #cbd5e1; }
+        .sticky-header-col { z-index: 110 !important; background-color: #0f172a !important; color: white !important; }
+
+        .w-no { min-width: 50px; } .w-kode { min-width: 90px; } .w-bab { min-width: 160px; }
+        .w-atp { min-width: 450px; } .w-jp { min-width: 60px; } .w-sem { min-width: 60px; }
+        .w-date { min-width: 45px; }
+
+        .adm-table td { border: 1px solid #cbd5e1; padding: 0; vertical-align: top; }
+        .adm-table input, .adm-table textarea { width: 100%; background: transparent; outline: none; border: none; padding: 10px; font-weight: 600; font-size: 11px; color: #000; }
+        .adm-table textarea { resize: none; overflow: hidden; min-height: 45px; line-height: 1.5; }
+        
+        .check-cell { text-align: center; vertical-align: middle !important; background-color: #f8fafc; }
+        .check-cell input { width: 22px; height: 22px; cursor: pointer; accent-color: #4f46e5; }
+        
+        .is-holiday { background-color: #fee2e2 !important; color: #b91c1c; border: 1px solid #f87171 !important; }
+        .is-partial { background-color: #fef3c7 !important; color: #92400e; border: 1px solid #fbbf24 !important; }
+
+        /* --- PRINT STYLES --- */
+        .no-print { display: block; }
+        
+        @media print {
+            * { font-family: 'Times New Roman', serif !important; color: black !important; }
+            body > *:not(#print-area) { display: none !important; }
+            #print-area { 
+                display: block !important; 
+                position: absolute; 
+                top: 0; left: 0; width: 100%; 
+                padding: 20px; background: white; z-index: 9999; 
+            }
+            .gradient-bg { background: white !important; }
+
+            /* Dynamic Styles for PDF */
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+            th, td { border: 1px solid black !important; padding: 6px; vertical-align: top; white-space: normal; word-wrap: break-word;}
+            th { background-color: #f0f0f0 !important; text-align: center; font-weight: bold; -webkit-print-color-adjust: exact; }
+            .text-center { text-align: center !important; }
+            .font-bold { font-weight: bold !important; }
+            .uppercase { text-transform: uppercase !important; }
+            
+            /* Fix Promes columns width for print */
+            .w-atp { min-width: 200px; } /* Adjust width for print paper */
+            .w-date { min-width: 30px; }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen p-4 md:p-8 text-gray-800">
+
+    <div id="loading-overlay" class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md font-bold text-indigo-600">
+        <i class="fa-solid fa-spinner fa-spin text-5xl mb-4"></i>
+        <p>Memuat Data...</p>
+    </div>
+
+    <!-- PAGE: SETUP -->
+    <div id="setup-page" class="hidden flex items-center justify-center min-h-[80vh]">
+        <div class="glass p-10 rounded-[3rem] w-full max-w-md shadow-2xl text-center border-white border">
+            <h1 class="text-2xl font-black mb-6 text-indigo-600 italic uppercase">Profil Pengajar</h1>
+            <input type="text" id="input-nama-setup" placeholder="Nama Lengkap" class="w-full p-4 rounded-2xl border mb-4 outline-none font-bold">
+            <input type="text" id="input-kelas-setup" placeholder="Guru Kelas" class="w-full p-4 rounded-2xl border mb-6 outline-none font-bold">
+            <input type="text" id="input-kepsek-setup" placeholder="Nama Kepala Sekolah" class="w-full p-4 rounded-2xl border mb-4 outline-none font-bold">
+            <button onclick="navigasi('dashboard')" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold uppercase shadow-xl tracking-widest">Masuk</button>
+            <p class="text-[10px] text-gray-400 mt-4 italic">Data tersimpan di memori browser ini.</p>
+        </div>
+    </div>
+
+    <!-- PAGE: DASHBOARD -->
+    <div id="dashboard-page" class="hidden max-w-5xl mx-auto">
+        <div class="glass p-6 rounded-[2.5rem] shadow-xl mb-8 flex justify-between items-center border-white border">
+            <div><h2 class="text-xl font-black italic text-indigo-800" id="display-nama"></h2><p id="display-kelas" class="text-xs text-gray-500 font-bold uppercase italic"></p></div>
+            <div class="flex gap-2">
+                <button onclick="hapusSemuaData()" title="Reset Data" class="bg-gray-200 text-gray-600 px-4 rounded-2xl hover:bg-red-500 hover:text-white transition-all"><i class="fa-solid fa-trash text-sm"></i></button>
+                <button onclick="paksaSimpan()" class="bg-green-100 text-green-600 p-4 rounded-2xl hover:bg-green-600 hover:text-white transition-all shadow-md"><i class="fa-solid fa-cloud-arrow-up text-xl"></i></button>
+                <button onclick="navigasi('setup')" class="text-red-500 hover:scale-110 transition-transform"><i class="fa-solid fa-power-off text-2xl"></i></button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+            <div onclick="navigasi('kalender')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-b-4 border-blue-500 hover:-translate-y-2 transition-all"><i class="fa-solid fa-calendar-day text-4xl text-blue-500 mb-4"></i><h3 class="font-bold text-xs uppercase">Analisis Kalender</h3></div>
+            <div onclick="navigasi('jadwal')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-b-4 border-green-500 hover:-translate-y-2 transition-all"><i class="fa-solid fa-clock text-4xl text-green-500 mb-4"></i><h3 class="font-bold text-sm uppercase">Jadwal Pelajaran</h3></div>
+            <div onclick="navigasi('prota')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-b-4 border-orange-500 hover:-translate-y-2 transition-all"><i class="fa-solid fa-book text-4xl text-orange-500 mb-4"></i><h3 class="font-bold text-sm uppercase">PROTA</h3></div>
+            <div onclick="navigasi('promes')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-b-4 border-purple-500 hover:-translate-y-2 transition-all"><i class="fa-solid fa-scroll text-4xl text-purple-500 mb-4"></i><h3 class="font-bold text-sm uppercase">PROMES</h3></div>
+            <div onclick="navigasi('jurnal')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-b-4 border-gray-800 hover:-translate-y-2 transition-all"><i class="fa-solid fa-pen-to-square text-4xl text-gray-800 mb-4"></i><h3 class="font-bold text-sm uppercase">Jurnal Mengajar</h3></div>
+        </div>
+    </div>
+
+    <!-- JURNAL PAGE -->
+    <div id="jurnal-page" class="hidden max-w-4xl mx-auto">
+        <button onclick="navigasi('dashboard')" class="bg-white/20 text-white px-6 py-2 rounded-xl font-bold mb-8 italic"><i class="fa-solid fa-chevron-left mr-2"></i>Beranda</button>
+        <div class="glass p-8 rounded-[2.5rem] shadow-2xl mb-6">
+            <h2 class="text-2xl font-bold mb-6 text-center text-indigo-900 uppercase italic">Cetak Jurnal Harian</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase mb-2 text-gray-500">Pilih Tanggal</label>
+                    <input type="date" id="input-tanggal-jurnal" class="w-full p-4 rounded-2xl border outline-none font-bold text-indigo-900">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase mb-2 text-gray-500">Nama Siswa (Opsional)</label>
+                    <input type="text" id="input-siswa-list" placeholder="Budi, Siti, Ahmad..." class="w-full p-4 rounded-2xl border outline-none text-sm">
+                </div>
+            </div>
+            <button onclick="prepareAndPrint()" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-bold uppercase shadow-xl tracking-widest hover:bg-indigo-800 transition-colors">Cetak / Simpan PDF</button>
+        </div>
+    </div>
+
+    <!-- PRINT AREA CONTAINER -->
+    <div id="print-area" class="hidden bg-white p-10"></div>
+
+    <!-- JADWAL PAGE -->
+    <div id="jadwal-page" class="hidden max-w-6xl mx-auto">
+        <button onclick="navigasi('dashboard')" class="bg-white/20 text-white px-6 py-2 rounded-xl font-bold mb-6 italic"><i class="fa-solid fa-chevron-left mr-2"></i>Beranda</button>
+        <div id="jadwal-container" class="grid grid-cols-1 md:grid-cols-5 gap-5 font-bold text-xs"></div>
+    </div>
+
+    <!-- KALENDER PAGE -->
+    <div id="kalender-page" class="hidden max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <button onclick="navigasi('dashboard')" class="bg-indigo-900 text-white px-8 py-3 rounded-2xl font-bold shadow-xl">BERANDA</button>
+            <div class="flex gap-2 bg-white/20 p-2 rounded-2xl">
+                <input type="number" id="input-tahun" value="2025" onchange="initKalender()" class="w-24 p-2 rounded-xl font-bold text-center outline-none text-indigo-900">
+                <select id="select-semester" onchange="initKalender()" class="p-2 rounded-xl font-bold outline-none text-indigo-900 cursor-pointer">
+                    <option value="1">Semester 1 (Ganjil)</option><option value="2">Semester 2 (Genap)</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="lg:col-span-1 space-y-6">
+                <button onclick="bukaRekapMapel()" class="w-full bg-green-700 text-white py-4 rounded-2xl font-bold italic shadow-lg uppercase text-xs">Rekap Efektif Per Mapel</button>
+                <div class="glass p-6 rounded-[2.5rem] text-center border-2 border-indigo-900"><h2 id="grand-total-semester" class="text-5xl font-black text-indigo-900">0</h2><p class="text-[10px] font-bold text-gray-400">TOTAL HARI EFEKTIF</p></div>
+                <div id="stats-bulanan" class="space-y-2"></div>
+                <div class="p-2 uppercase font-black text-[10px] text-indigo-900 italic border-b-2 border-indigo-200 mt-4">Rekap Tidak Efektif</div>
+                <div id="rekap-list" class="space-y-2 max-h-[300px] overflow-y-auto custom-scroll"></div>
+            </div>
+            <div id="calendar-grid" class="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+        </div>
+    </div>
+
+    <!-- PRO LIST PAGE -->
+    <div id="pro-list-page" class="hidden max-w-5xl mx-auto">
+        <button onclick="navigasi('dashboard')" class="bg-white/20 text-white px-6 py-2 rounded-xl font-bold mb-8 italic"><i class="fa-solid fa-chevron-left mr-2"></i>Beranda</button>
+        <h2 id="pro-list-title" class="text-3xl font-black text-white text-center mb-10 italic uppercase"></h2>
+        <div id="pro-mapel-list-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- PROTA DETAIL -->
+    <div id="prota-detail-page" class="hidden max-w-7xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
+            <button onclick="navigasi('prota')" class="bg-white px-6 py-2 rounded-xl font-bold shadow-lg text-indigo-900 text-sm">KEMBALI</button>
+            <div class="flex flex-wrap gap-2">
+                <!-- Export Buttons -->
+                <div class="flex gap-1 border border-gray-300 rounded-xl overflow-hidden">
+                    <button onclick="printProtaPromes('prota-table', 'PROTA', 'portrait')" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 text-xs font-bold text-gray-700"><i class="fa-solid fa-file-pdf"></i> PDF P</button>
+                    <button onclick="printProtaPromes('prota-table', 'PROTA', 'landscape')" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 text-xs font-bold text-gray-700"><i class="fa-solid fa-file-pdf"></i> PDF L</button>
+                    <button onclick="exportToExcel('prota-table', 'Data_PROTA')" class="bg-green-600 hover:bg-green-700 px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                </div>
+                <button onclick="tambahBaris('prota')" class="bg-indigo-900 text-white px-6 py-2 rounded-xl font-bold shadow-lg uppercase text-xs">Tambah Baris</button>
+            </div>
+        </div>
+        <div class="glass p-4 rounded-3xl shadow-2xl border-white border">
+            <div class="table-container custom-scroll sticky-table">
+                <table class="w-full border-collapse bg-white adm-table" id="prota-table">
+                    <thead><tr>
+                        <th class="p-4 w-no sticky-col sticky-header-col" style="left:0">NO</th>
+                        <th class="p-4 w-kode">KODE</th>
+                        <th class="p-4 w-bab">BAB</th>
+                        <th class="p-4">ATP / KD</th>
+                        <th class="p-4 w-jp">JP</th>
+                        <th class="p-4 w-sem">SEM</th>
+                        <th class="p-4 w-12 bg-red-800 text-white">X</th>
+                    </tr></thead>
+                    <tbody id="prota-table-body"></tbody>
+                </table>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <div class="bg-indigo-900 text-white p-4 px-10 rounded-3xl font-bold italic text-xl shadow-xl">Total JP: <span id="prota-total-jp">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROMES DETAIL -->
+    <div id="promes-detail-page" class="hidden max-w-7xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
+            <button onclick="navigasi('promes')" class="bg-white px-6 py-2 rounded-xl font-bold shadow-lg text-indigo-900 text-sm">KEMBALI</button>
+            <div class="flex flex-wrap gap-2">
+                <div class="flex gap-1 border border-gray-300 rounded-xl overflow-hidden">
+                    <button onclick="printProtaPromes('promes-table', 'PROMES', 'portrait')" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 text-xs font-bold text-gray-700"><i class="fa-solid fa-file-pdf"></i> PDF P</button>
+                    <button onclick="printProtaPromes('promes-table', 'PROMES', 'landscape')" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 text-xs font-bold text-gray-700"><i class="fa-solid fa-file-pdf"></i> PDF L</button>
+                    <button onclick="exportToExcel('promes-table', 'Data_PROMES')" class="bg-green-600 hover:bg-green-700 px-3 py-2 text-xs font-bold text-white"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                </div>
+                <button onclick="tarikDataProta()" class="bg-amber-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg italic uppercase text-xs">Ambil Data PROTA</button>
+                <button onclick="tambahBaris('promes')" class="bg-indigo-900 text-white px-6 py-2 rounded-xl font-bold shadow-lg uppercase text-xs">Baris Baru</button>
+            </div>
+        </div>
+        <div class="glass p-4 rounded-3xl shadow-2xl border-white border">
+            <div class="table-container custom-scroll sticky-table">
+                <table class="w-full border-collapse bg-white adm-table" id="promes-table">
+                    <thead id="promes-table-head"></thead>
+                    <tbody id="promes-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL HARI -->
+    <div id="modal-hari" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div class="glass w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl">
+            <div class="flex justify-between items-center mb-6"><h3 id="modal-date-title" class="text-xl font-bold text-indigo-900"></h3><span id="modal-day-badge" class="px-3 py-1 bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold uppercase italic"></span></div>
+            <label class="flex items-center gap-4 p-5 rounded-2xl border-2 border-red-50 mb-4 cursor-pointer hover:bg-red-50"><input type="checkbox" id="check-libur-total" class="w-6 h-6 accent-red-600"><p class="font-bold text-red-600 text-sm">Libur Total</p></label>
+            <div class="p-4 rounded-2xl border-2 border-amber-50 bg-amber-50/50 mb-4"><p class="font-bold text-amber-700 mb-3 text-xs italic">Libur Per Mapel:</p><div id="list-mapel-modal" class="grid grid-cols-1 gap-2 text-[11px] font-bold"></div></div>
+            <textarea id="input-keterangan" rows="2" placeholder="Alasan (IMD, Rapat, dsb)..." class="w-full p-4 rounded-xl border outline-none font-medium text-sm"></textarea>
+            <div class="flex gap-3 mt-6"><button onclick="simpanStatusHari()" class="flex-1 bg-indigo-900 text-white py-4 rounded-2xl font-bold shadow-lg uppercase text-xs">Simpan</button><button onclick="tutupModal('modal-hari')" class="flex-1 bg-gray-100 py-4 rounded-2xl font-bold text-gray-400 uppercase text-xs">Batal</button></div>
+        </div>
+    </div>
+
+    <!-- MODAL REKAP MAPEL -->
+    <div id="modal-rekap-mapel" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+        <div class="glass w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl border-indigo-200 border">
+            <h3 class="text-xl font-bold mb-6 text-indigo-600 text-center uppercase italic">Hari Efektif Per Mapel</h3>
+            <div id="list-rekap-mapel-content" class="space-y-2 max-h-[400px] overflow-y-auto custom-scroll pr-2 mb-6"></div>
+            <button onclick="tutupModal('modal-rekap-mapel')" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-colors">Tutup</button>
+        </div>
+    </div>
+
+    <script>
+        let dataJadwal = { 'Senin':['PAI','B. Indonesia','Literasi'],'Selasa':['Matematika','IPA','B. Inggris'],'Rabu':['IPA','SBdP','B. Indonesia'],'Kamis':['Matematika','B. Indonesia','PJOK'],'Jumat':['Pramuka','Literasi','PAI']};
+        let pengecualian = {}; let dataProta = {}; let dataPromes = {}; 
+        let curMapel = ""; let curMode = "";
+
+        const DB_KEY = 'admGuruData_v4';
+
+        window.onload = function() {
+            setTimeout(() => {
+                const savedData = localStorage.getItem(DB_KEY);
+                if(savedData) {
+                    try {
+                        const p = JSON.parse(savedData);
+                        dataJadwal = p.jadwal || dataJadwal;
+                        pengecualian = p.pengecualian || {};
+                        dataProta = p.prota || {};
+                        dataPromes = p.promes || {};
+                        document.getElementById('input-nama-setup').value = p.profil?.nama || "";
+                        document.getElementById('input-kelas-setup').value = p.profil?.kelas || "";
+                        document.getElementById('input-kepsek-setup').value = p.profil?.kepsek || "";
+                        if(p.profil?.nama) navigasi('dashboard'); else navigasi('setup');
+                    } catch(e) { navigasi('setup'); }
+                } else { navigasi('setup'); }
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }, 500);
+        };
+
+        function navigasi(page) {
+            document.querySelectorAll('body > div[id]').forEach(div => div.classList.add('hidden'));
+            if(page === 'dashboard') {
+                document.getElementById('display-nama').innerText = document.getElementById('input-nama-setup').value || "Pengajar";
+                document.getElementById('display-kelas').innerText = document.getElementById('input-kelas-setup').value || "Kelas";
+                document.getElementById('dashboard-page').classList.remove('hidden');
+            } else if(page === 'jadwal') { renderJadwal(); document.getElementById('jadwal-page').classList.remove('hidden'); }
+            else if(page === 'kalender') { initKalender(); document.getElementById('kalender-page').classList.remove('hidden'); }
+            else if(page === 'prota' || page === 'promes') { curMode = page; renderMapelList(page); document.getElementById('pro-list-page').classList.remove('hidden'); }
+            else { document.getElementById(page + '-page').classList.remove('hidden'); }
+        }
+
+        function paksaSimpan() {
+            const p = { 
+                profil: { 
+                    nama: document.getElementById('input-nama-setup').value, 
+                    kelas: document.getElementById('input-kelas-setup').value,
+                    kepsek: document.getElementById('input-kepsek-setup').value
+                }, 
+                jadwal: dataJadwal, 
+                pengecualian: pengecualian, 
+                prota: dataProta, 
+                promes: dataPromes 
+            };
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            localStorage.setItem(DB_KEY, JSON.stringify(p));
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+                alert("Berhasil disimpan di Local Storage Browser!");
+            }, 800);
+        }
+
+        function hapusSemuaData() {
+            if(confirm("Hapus semua data?")) {
+                localStorage.removeItem(DB_KEY);
+                location.reload();
+            }
+        }
+
+        function tutupModal(id) { 
+            document.getElementById(id).classList.add('hidden'); 
+        }
+
+        // --- EXPORT TO EXCEL FUNCTION ---
+        function exportToExcel(tableId, fileName) {
+            const table = document.getElementById(tableId);
+            const html = table.outerHTML;
+            // Replace inputs/textarea with values
+            const cleanHtml = html.replace(/<input[^>]*value="([^"]*)"[^>]*>/g, '$1')
+                                  .replace(/<textarea[^>]*>(.*?)<\/textarea>/g, '$1')
+                                  .replace(/<button[^>]*>×<\/button>/g, '') // Remove delete buttons
+                                  .replace(/<input[^>]*type="checkbox"[^>]*>/g, '') // Remove checkboxes for cleaner excel
+                                  .replace(/type="checkbox"/g, ''); 
+
+            // Add basic styling for Excel borders
+            const style = `<style>
+                table { border-collapse: collapse; width: 100%; }
+                td, th { border: 1px solid black; padding: 5px; font-family: Arial, sans-serif; font-size: 11px; }
+                th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+            </style>`;
+
+            const blob = new Blob(['\ufeff', style + cleanHtml], {
+                type: 'application/vnd.ms-excel'
+            });
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName + '.xls';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // --- PRINT PROTA / PROMES (PDF) FUNCTION ---
+        function printProtaPromes(tableId, title, orientation) {
+            const table = document.getElementById(tableId);
+            const clone = table.cloneNode(true);
+            
+            // Clean the table for print (remove inputs/buttons)
+            const inputs = clone.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                const span = document.createElement('span');
+                span.innerText = input.value;
+                input.replaceWith(span);
+            });
+            const buttons = clone.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+            const checkboxes = clone.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                 const span = document.createElement('span');
+                 span.innerText = cb.checked ? "✔" : "";
+                 cb.replaceWith(span);
+            });
+
+            // Wrap in printable structure
+            const htmlContent = `
+                <h2 class="text-center font-bold text-xl uppercase mb-4 border-b pb-2">${title} - ${curMapel}</h2>
+                ${clone.outerHTML}
+                <div class="mt-8 flex justify-end">
+                    <p class="italic">Mengetahui, Kepala Sekolah</p>
+                    <div style="height: 80px"></div>
+                    <p class="font-bold underline">${document.getElementById('input-kepsek-setup').value}</p>
+                </div>
+            `;
+
+            document.getElementById('print-area').innerHTML = htmlContent;
+            document.getElementById('print-area').classList.remove('hidden');
+
+            // Inject dynamic style for orientation
+            const styleId = 'print-orientation-style';
+            let styleTag = document.getElementById(styleId);
+            if (!styleTag) {
+                styleTag = document.createElement('style');
+                styleTag.id = styleId;
+                document.head.appendChild(styleTag);
+            }
+            styleTag.innerHTML = `@media print { @page { size: ${orientation}; margin: 10mm; } }`;
+
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+
+        // --- JURNAL & PRINT ---
+        function prepareAndPrint() {
+            const dateVal = document.getElementById('input-tanggal-jurnal').value;
+            if(!dateVal) { alert("Pilih tanggal dulu!"); return; }
+            
+            const dateObj = new Date(dateVal);
+            const dateStr = dateVal; 
+            const dayName = dateObj.toLocaleDateString('id-ID', { weekday: 'long' });
+            
+            const kelas = document.getElementById('display-kelas').innerText;
+            const guru = document.getElementById('display-nama').innerText;
+            const kepsek = document.getElementById('input-kepsek-setup').value || "Kepala Sekolah";
+            const tahun = document.getElementById('input-tahun').value;
+            const sem = document.getElementById('select-semester').value;
+            
+            const schedule = dataJadwal[dayName] || [];
+            
+            let rowsA = "";
+            let no = 1;
+            schedule.forEach(mapel => {
+                let bab = "-";
+                let materi = "-";
+                if(dataPromes[mapel]) {
+                    const activeRow = dataPromes[mapel].find(r => r.checks[dateStr]);
+                    if(activeRow) {
+                        bab = activeRow.bab;
+                        materi = activeRow.atp;
+                    }
+                }
+                rowsA += `
+                    <tr>
+                        <td class="text-center">${no}</td>
+                        <td>${guru}</td>
+                        <td>${mapel}</td>
+                        <td>${bab}</td>
+                        <td>${materi}</td>
+                        <td></td>
+                    </tr>
+                `;
+                no++;
+            });
+
+            let siswaInput = document.getElementById('input-siswa-list').value;
+            let siswaArr = siswaInput ? siswaInput.split(',').map(s => s.trim()) : [];
+            if(siswaArr.length === 0) for(let i=0; i<15; i++) siswaArr.push("");
+            
+            let rowsB = "";
+            siswaArr.forEach((nama, idx) => {
+                rowsB += `
+                    <tr>
+                        <td class="text-center">${idx+1}</td>
+                        <td>${nama}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                `;
+            });
+
+            let rowsC = "";
+            for(let i=0; i<5; i++) {
+                rowsC += `<tr><td></td><td></td><td></td><td></td></tr>`;
+            }
+
+            const printContent = `
+                <h2 class="text-center font-bold text-xl uppercase mb-6">Jurnal Kelas</h2>
+                <table style="margin-bottom: 20px;">
+                    <tr>
+                        <td style="width: 150px; font-weight: bold;">Kelas</td>
+                        <td style="width: 20px;">:</td>
+                        <td>${kelas}</td>
+                        <td style="width: 150px; font-weight: bold;">Semester</td>
+                        <td style="width: 20px;">:</td>
+                        <td>${sem}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Tahun Pelajaran</td>
+                        <td>:</td>
+                        <td>${tahun}-${parseInt(tahun)+1}</td>
+                        <td style="font-weight: bold;">Hari/Tanggal</td>
+                        <td>:</td>
+                        <td>${dayName}, ${dateStr}</td>
+                    </tr>
+                </table>
+
+                <h4 class="font-bold uppercase mb-2 border-b border-black inline-block">A. Kegiatan Pembelajaran</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">No</th>
+                            <th>Nama Guru</th>
+                            <th>Mata Pelajaran</th>
+                            <th>Bab</th>
+                            <th>Materi</th>
+                            <th>Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsA}
+                    </tbody>
+                </table>
+
+                <h4 class="font-bold uppercase mb-2 mt-6 border-b border-black inline-block">B. Ketidakhadiran Siswa</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">No</th>
+                            <th>Nama Siswa</th>
+                            <th>Izin*</th>
+                            <th>Jam ke-</th>
+                            <th>Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsB}
+                    </tbody>
+                </table>
+                <p class="italic text-xs mt-1">*) Diisi I=Izin, S=Sakit, A= Alpha</p>
+
+                <h4 class="font-bold uppercase mb-2 mt-6 border-b border-black inline-block">B. Catatan kejadian penting di kelas</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Jam ke</th>
+                            <th>Kasus</th>
+                            <th>Penanganan Guru</th>
+                            <th>Nama dan Tanda Tangan Guru</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsC}
+                    </tbody>
+                </table>
+
+                <div class="flex justify-between mt-10">
+                    <div class="text-center w-1/3">
+                        <p>Mengetahui,<br>Kepala Sekolah</p>
+                        <div class="signature-box"></div>
+                        <p class="font-bold underline">${kepsek}</p>
+                    </div>
+                    <div class="text-center w-1/3">
+                        <p>Bogor, ${dateObj.toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}<br>Wali Kelas</p>
+                        <div class="signature-box"></div>
+                        <p class="font-bold underline">${guru}</p>
+                    </div>
+                </div>
+            `;
+
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = printContent;
+            printArea.classList.remove('hidden');
+
+            // Reset orientation for Jurnal (Potrait default)
+            const styleId = 'print-orientation-style';
+            let styleTag = document.getElementById(styleId);
+            if (!styleTag) {
+                styleTag = document.createElement('style');
+                styleTag.id = styleId;
+                document.head.appendChild(styleTag);
+            }
+            styleTag.innerHTML = `@media print { @page { size: portrait; margin: 10mm; } }`;
+
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+
+        // --- KALENDER & STATISTIK ---
+        function initKalender() {
+            const sem = document.getElementById('select-semester').value;
+            const thn = parseInt(document.getElementById('input-tahun').value);
+            const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
+            let start = sem === '1' ? 6 : 0;
+            for(let i=0; i<6; i++) {
+                let m = (start + i) % 12;
+                let y = (sem === '1' && start + i >= 12) ? thn + 1 : thn;
+                if(sem === '2') y = thn; renderMonth(m, y);
+            }
+            hitungStatistik();
+        }
+
+        function renderMonth(m, y) {
+            const mName = new Date(y, m).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            let html = `<div class="glass p-5 rounded-3xl shadow-lg border"><h4 class="text-center font-bold text-indigo-900 mb-4 border-b pb-2 uppercase text-[10px] tracking-widest italic">${mName}</h4><div class="grid grid-cols-7 gap-1 text-[8px] text-center font-black text-gray-400 mb-2 uppercase"><div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div><div>Min</div></div><div class="grid grid-cols-7 gap-1.5">`;
+            let fDay = new Date(y, m, 1).getDay(); let dInM = new Date(y, m+1, 0).getDate();
+            let offset = fDay === 0 ? 6 : fDay - 1;
+            for(let x=0; x<offset; x++) html += `<div></div>`;
+            for(let d=1; d<=dInM; d++) {
+                let dStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                let dObj = new Date(y, m, d); let isW = (dObj.getDay() === 0 || dObj.getDay() === 6);
+                let dayName = dObj.toLocaleDateString('id-ID', { weekday: 'long' });
+                let st = ""; if(pengecualian[dStr]) st = pengecualian[dStr].type === 'total' ? 'is-holiday' : 'is-partial';
+                html += `<div onclick="bukaModal('${dStr}', '${dayName}', ${isW})" class="day-cell h-8 flex items-center justify-center rounded-xl text-[11px] font-bold ${isW ? 'bg-gray-100 text-gray-300 cursor-default' : 'bg-white shadow-sm'} ${st}">${d}</div>`;
+            }
+            document.getElementById('calendar-grid').innerHTML += html + `</div></div>`;
+        }
+
+        function bukaModal(dStr, dayName, isW) {
+            if(isW) return; document.getElementById('modal-date-title').innerText = dStr;
+            document.getElementById('modal-day-badge').innerText = dayName;
+            const data = pengecualian[dStr] || { type: '', reason: '', mapels: [] };
+            document.getElementById('check-libur-total').checked = (data.type === 'total');
+            document.getElementById('input-keterangan').value = data.reason || '';
+            const lCont = document.getElementById('list-mapel-modal'); lCont.innerHTML = '';
+            if(dataJadwal[dayName]) {
+                dataJadwal[dayName].forEach(m => {
+                    let mapelName = m.trim();
+                    let isChecked = data.mapels && data.mapels.includes(mapelName) ? 'checked' : '';
+                    lCont.innerHTML += `<label class="flex items-center gap-2 p-2 bg-white rounded-xl border text-[10px] cursor-pointer font-bold"><input type="checkbox" class="check-mapel-item accent-indigo-600 w-4 h-4" value="${mapelName}" ${isChecked}> ${mapelName}</label>`;
+                });
+            }
+            document.getElementById('modal-hari').classList.remove('hidden');
+        }
+
+        function simpanStatusHari() {
+            let dStr = document.getElementById('modal-date-title').innerText;
+            const isTotal = document.getElementById('check-libur-total').checked;
+            const selectedMapels = Array.from(document.querySelectorAll('.check-mapel-item:checked')).map(el => el.value);
+            const reason = document.getElementById('input-keterangan').value;
+            if(isTotal) pengecualian[dStr] = { type: 'total', reason: reason || 'Libur Total', mapels: [] };
+            else if(selectedMapels.length > 0) pengecualian[dStr] = { type: 'partial', reason: reason || 'Tidak Efektif', mapels: selectedMapels };
+            else delete pengecualian[dStr];
+            tutupModal('modal-hari'); initKalender();
+        }
+
+        function hitungStatistik() {
+            const sem = document.getElementById('select-semester').value; const thn = parseInt(document.getElementById('input-tahun').value);
+            let start = sem === '1' ? 6 : 0; let grandT = 0; let hStats = ""; let exHtml = "";
+            for(let i=0; i<6; i++) {
+                let m = (start + i) % 12; let y = (sem === '1' && start + i >= 12) ? thn + 1 : thn;
+                if(sem === '2') y = thn;
+                let count = 0; let d = new Date(y, m, 1);
+                while(d.getMonth() === m) {
+                    let dStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    if(d.getDay() !== 0 && d.getDay() !== 6) {
+                        if(!pengecualian[dStr] || pengecualian[dStr].type !== 'total') count++;
+                        if(pengecualian[dStr]) {
+                            let p = pengecualian[dStr]; let dObj = new Date(dStr); let dayN = dObj.toLocaleDateString('id-ID', { weekday: 'long' });
+                            let mapelDesc = p.type === 'total' ? 'Semua Mapel' : p.mapels.join(', ');
+                            exHtml += `<div class="p-3 bg-white border-l-4 ${p.type === 'total' ? 'border-red-500' : 'border-amber-500'} rounded-2xl shadow-sm text-[10px] font-bold italic mb-2"><div class="text-indigo-600">${dayN}, ${dStr}</div><div class="text-gray-700">${mapelDesc}</div><div class="text-gray-400 font-normal">Ket: ${p.reason}</div></div>`;
+                        }
+                    }
+                    d.setDate(d.getDate()+1);
+                }
+                grandT += count; hStats += `<div class="p-3 bg-white rounded-xl border flex justify-between font-bold text-[10px] uppercase text-indigo-900 shadow-sm"><span>${new Date(y, m).toLocaleDateString('id-ID',{month:'long'})}</span><span>${count} HARI</span></div>`;
+            }
+            document.getElementById('stats-bulanan').innerHTML = hStats; document.getElementById('grand-total-semester').innerText = grandT;
+            document.getElementById('rekap-list').innerHTML = exHtml || '<p class="text-[10px] text-gray-300 text-center italic py-4">TIDAK ADA PENGECUALIAN</p>';
+        }
+
+        // --- PROTA & PROMES ---
+        function renderMapelList(mode) {
+            const list = document.getElementById('pro-mapel-list-container'); list.innerHTML = '';
+            document.getElementById('pro-list-title').innerText = mode === 'prota' ? 'PROTA' : 'PROMES';
+            let all = [...new Set(Object.values(dataJadwal).flat().map(m => m.trim()))];
+            all.forEach(m => { list.innerHTML += `<div onclick="bukaDetail('${mode}', '${m}')" class="glass p-8 rounded-[2.5rem] shadow-lg cursor-pointer border-l-8 ${mode==='prota'?'border-orange-500':'border-purple-500'} flex justify-between font-bold uppercase italic hover:shadow-2xl transition-all"><span>${m}</span><i class="fa-solid fa-chevron-right text-gray-300"></i></div>`; });
+        }
+
+        function bukaDetail(mode, mapel) {
+            curMapel = mapel; curMode = mode;
+            if(mode === 'prota') { if(!dataProta[mapel]) dataProta[mapel] = [{kode:'', bab:'', atp:'', jp:'', sem:''}]; renderTableProta(); navigasi('prota-detail'); }
+            else { if(!dataPromes[mapel]) dataPromes[mapel] = [{kode:'', bab:'', atp:'', jp:'', sem:'', checks:{}}]; renderTablePromes(); navigasi('promes-detail'); }
+        }
+
+        function handlePasteProta(e, rIdx) {
+            e.preventDefault(); let text = (e.clipboardData || window.clipboardData).getData('Text');
+            let rows = text.split(/\r\n|\n|\r/);
+            rows.forEach((row, i) => { if(!row.trim()) return; let cols = row.split('\t'); let idx = rIdx + i;
+                if(!dataProta[curMapel][idx]) dataProta[curMapel].push({kode:'', bab:'', atp:'', jp:'', sem:''});
+                dataProta[curMapel][idx].kode = cols[0] || ""; dataProta[curMapel][idx].bab = cols[1] || ""; dataProta[curMapel][idx].atp = cols[2] || ""; dataProta[curMapel][idx].jp = cols[3] || ""; dataProta[curMapel][idx].sem = cols[4] || "";
+            }); renderTableProta();
+        }
+
+        function renderTableProta() {
+            const body = document.getElementById('prota-table-body'); body.innerHTML = ''; let t = 0;
+            dataProta[curMapel].forEach((r, i) => { t += parseFloat(r.jp) || 0;
+                body.innerHTML += `<tr><td class="text-center font-bold sticky-col" style="left:0">${i+1}</td><td><input type="text" value="${r.kode}" oninput="dataProta['${curMapel}'][${i}].kode=this.value" onpaste="handlePasteProta(event, ${i})"></td><td><input type="text" value="${r.bab}" oninput="dataProta['${curMapel}'][${i}].bab=this.value"></td><td class="w-atp"><textarea oninput="this.style.height=''; this.style.height=this.scrollHeight+'px'; dataProta['${curMapel}'][${i}].atp=this.value">${r.atp}</textarea></td><td><input type="number" value="${r.jp}" oninput="dataProta['${curMapel}'][${i}].jp=this.value; document.getElementById('prota-total-jp').innerText=hitungTotalJP()"></td><td><input type="text" value="${r.sem}" oninput="dataProta['${curMapel}'][${i}].sem=this.value"></td><td class="text-center"><button onclick="hapusBaris('prota', ${i})" class="text-red-700">×</button></td></tr>`;
+            }); document.getElementById('prota-total-jp').innerText = t;
+        }
+
+        function tarikDataProta() {
+            if(!dataProta[curMapel] || dataProta[curMapel].length === 0) { alert("Isi PROTA dulu!"); return; }
+            dataPromes[curMapel] = dataProta[curMapel].map((r, i) => {
+                const ex = dataPromes[curMapel] ? dataPromes[curMapel][i] : null;
+                return { kode: r.kode, bab: r.bab, atp: r.atp, jp: r.jp, sem: r.sem, checks: ex ? ex.checks : {} };
+            }); renderTablePromes();
+        }
+
+        function renderTablePromes() {
+            const sem = document.getElementById('select-semester').value; const thn = parseInt(document.getElementById('input-tahun').value);
+            let start = sem === '1' ? 6 : 0; let dates = [];
+            for(let i=0; i<185; i++) {
+                let d = new Date(thn, start, 1+i);
+                if(sem === '1' && d.getMonth() > 11 && d.getFullYear() === thn) continue;
+                if(sem === '2' && d.getMonth() > 5) break;
+                let dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                let dName = d.toLocaleDateString('id-ID', { weekday: 'long' });
+                let p = pengecualian[dStr];
+                if(dataJadwal[dName]?.includes(curMapel) && (!p || (p.type !== 'total' && (!p.mapels || !p.mapels.includes(curMapel))))) dates.push({ dStr, day: d.getDate(), month: d.getMonth() });
+            }
+            const head = document.getElementById('promes-table-head');
+            let mGrps = {}; dates.forEach(d => { let mN = new Date(thn, d.month).toLocaleDateString('id-ID',{month:'short'}); mGrps[mN] = (mGrps[mN]||0)+1; });
+            
+            let h1 = `<tr class="italic font-bold text-[10px]">
+                <th rowspan="2" class="w-no sticky-col sticky-header-col" style="left:0">NO</th>
+                <th rowspan="2" class="w-kode sticky-col sticky-header-col" style="left:50px">KODE</th>
+                <th rowspan="2" class="w-bab sticky-col sticky-header-col" style="left:140px">BAB</th>
+                <th rowspan="2" class="w-atp sticky-col sticky-header-col" style="left:300px">ATP/KD</th>
+                <th rowspan="2" class="w-jp sticky-col sticky-header-col" style="left:750px">JP</th>
+                <th rowspan="2" class="w-sem sticky-col sticky-header-col border-r-2" style="left:810px">SEM</th>`;
+            Object.keys(mGrps).forEach(m => h1 += `<th colspan="${mGrps[m]}" class="p-2 border-l border-indigo-400 bg-indigo-900 text-center uppercase text-white font-bold">${m}</th>`);
+            h1 += `<th rowspan="2" class="w-10 bg-red-800 text-white">X</th></tr>`;
+            
+            let h2 = `<tr class="bg-indigo-900 text-[9px] text-white">`;
+            dates.forEach(d => h2 += `<th class="w-date border-l border-indigo-300 text-center">${d.day}</th>`);
+            head.innerHTML = h1 + h2 + `</tr>`;
+
+            const body = document.getElementById('promes-table-body'); body.innerHTML = '';
+            if(!dataPromes[curMapel]) return;
+            dataPromes[curMapel].forEach((r, i) => {
+                let row = `<tr><td class="w-no sticky-col text-center font-bold bg-gray-50" style="left:0">${i+1}</td><td class="w-kode sticky-col" style="left:50px"><input type="text" value="${r.kode}" oninput="dataPromes['${curMapel}'][${i}].kode=this.value"></td><td class="w-bab sticky-col" style="left:140px"><input type="text" value="${r.bab}" oninput="dataPromes['${curMapel}'][${i}].bab=this.value"></td><td class="w-atp sticky-col" style="left:300px"><textarea oninput="this.style.height=''; this.style.height=this.scrollHeight+'px'; dataPromes['${curMapel}'][${i}].atp=this.value">${r.atp}</textarea></td><td class="w-jp sticky-col text-center" style="left:750px"><input type="number" value="${r.jp}" oninput="dataPromes['${curMapel}'][${i}].jp=this.value"></td><td class="w-sem sticky-col border-r-2 text-center" style="left:810px"><input type="text" value="${r.sem}" oninput="dataPromes['${curMapel}'][${i}].sem=this.value"></td>`;
+                dates.forEach(d => { let c = r.checks[d.dStr] ? 'checked' : ''; row += `<td class="w-date check-cell border-l"><input type="checkbox" ${c} onchange="dataPromes['${curMapel}'][${i}].checks['${d.dStr}']=this.checked"></td>`; });
+                body.innerHTML += row + `<td class="text-center"><button onclick="hapusBaris('promes', ${i})" class="text-red-700">×</button></td></tr>`;
+            });
+        }
+
+        function bukaRekapMapel() {
+            let s = {}; Object.values(dataJadwal).flat().forEach(m => s[m.trim()] = 0);
+            const sem = document.getElementById('select-semester').value; const thn = parseInt(document.getElementById('input-tahun').value);
+            let st = sem === '1' ? 6 : 0;
+            for(let i=0; i<185; i++) {
+                let d = new Date(thn, st, 1 + i); if(sem === '1' && d.getMonth() > 11 && d.getFullYear() === thn) continue; if(sem === '2' && d.getMonth() > 5) break;
+                let dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                let dName = d.toLocaleDateString('id-ID', { weekday: 'long' });
+                if(dataJadwal[dName] && d.getDay() !== 0 && d.getDay() !== 6) {
+                    dataJadwal[dName].forEach(m => { let mapel = m.trim(); let p = pengecualian[dStr];
+                        if(!(p && (p.type === 'total' || (p.type === 'partial' && p.mapels && p.mapels.includes(mapel))))) s[mapel]++;
+                    });
+                }
+            }
+            document.getElementById('list-rekap-mapel-content').innerHTML = Object.keys(s).sort().map(m => `<div class="flex justify-between p-4 bg-white rounded-2xl border-l-4 border-green-700 font-bold shadow-sm text-xs italic"><span>${m}</span><span class="text-green-700">${s[m]} Hari</span></div>`).join('');
+            document.getElementById('modal-rekap-mapel').classList.remove('hidden');
+        }
+
+        function renderJadwal() {
+            const cont = document.getElementById('jadwal-container'); cont.innerHTML = '';
+            Object.keys(dataJadwal).forEach(h => {
+                let items = dataJadwal[h].map((m, i) => `<div class="flex justify-between bg-white/50 p-3 rounded-xl mb-1.5 border"><span>${m}</span><button onclick="dataJadwal['${h}'].splice(${i},1); renderJadwal()" class="text-red-400 font-bold">×</button></div>`).join('');
+                cont.innerHTML += `<div class="glass p-5 rounded-3xl border shadow-lg"><h4 class="text-center font-bold text-indigo-900 mb-4 border-b uppercase italic text-[10px]">${h}</h4>${items}<div class="mt-4 flex gap-1"><input type="text" id="in-${h}" placeholder="+" class="w-full p-2 rounded-xl border text-xs outline-none"><button onclick="let v=document.getElementById('in-${h}').value; if(v){dataJadwal['${h}'].push(v); renderJadwal()}" class="bg-indigo-900 text-white px-3 rounded-xl">+</button></div></div>`;
+            });
+        }
+
+        function tambahBaris(mode) {
+            if(mode === 'prota') dataProta[curMapel].push({kode:'', bab:'', atp:'', jp:'', sem:''});
+            else dataPromes[curMapel].push({kode:'', bab:'', atp:'', jp:'', sem:'', checks:{}});
+            mode === 'prota' ? renderTableProta() : renderTablePromes();
+        }
+
+        function hapusBaris(mode, i) {
+            if(mode === 'prota') dataProta[curMapel].splice(i, 1);
+            else dataPromes[curMapel].splice(i, 1);
+            mode === 'prota' ? renderTableProta() : renderTablePromes();
+        }
+
+        function hitungTotalJP() { let t = 0; if(dataProta[curMapel]) dataProta[curMapel].forEach(r => t += parseFloat(r.jp) || 0); return t; }
+    </script>
+</body>
+</html>
